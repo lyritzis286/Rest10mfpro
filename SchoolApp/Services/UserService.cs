@@ -66,7 +66,7 @@ namespace SchoolApp.Services
                 User? user = await _unitOfWork.UserRepository.GetUserByUsernameAsync(username);
                 if(user is null)
                 {
-                    throw new EntityNotFoundException("User with " + username + "Not found");
+                    throw new EntityNotFoundException("User  " , "Entity Not found");
                 }
                 _logger.LogInformation("User found: {Username}");
                 return _mapper.Map<UserReadOnlyDTO>(user);
@@ -86,7 +86,7 @@ namespace SchoolApp.Services
 
                 if (user is null || !_encryptionUtil.IsValidPassword(credentials.Password!, user.Password))
                 {
-                    throw new EntityNotAuthorizedException("Bad Credentials");
+                    throw new EntityNotAuthorizedException("Auth","Bad Credentials");
                 }
                 _logger.LogInformation("User with username={Username} verified for login.", credentials.Username);
                 return user;

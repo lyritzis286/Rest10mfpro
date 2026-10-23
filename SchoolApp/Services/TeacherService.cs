@@ -33,7 +33,7 @@ namespace SchoolApp.Services
 
                 if (existingUser is not null)
                 {
-                    throw new EntityAlreadyExistsException("User " + existingUser.Username + " already exists");
+                    throw new EntityAlreadyExistsException("User " , " already exists");
                 }
 
                 user.Teacher = teacher;

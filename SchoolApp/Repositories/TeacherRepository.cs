@@ -10,7 +10,7 @@ public class TeacherRepository : BaseRepository<Teacher>, ITeacherRepository
 {
 
     
-public TeacherRepository(SchoolMvcDbfirstContext context) : base(context)
+public TeacherRepository(SchoolRest10Context context) : base(context)
     {
 
     }

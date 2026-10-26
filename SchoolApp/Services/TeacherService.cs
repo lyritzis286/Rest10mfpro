@@ -1,55 +1,50 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Identity;
 using SchoolApp.DTO;
 using SchoolApp.Exceptions;
 using SchoolApp.Models;
 using SchoolApp.Repositories;
 using SchoolApp.Security;
 
-namespace SchoolApp.Services
+namespace SchoolApp.Services;
+
+public class TeacherService : ITeacherService
 {
-    public class TeacherService : ITeacherService
+
+    private readonly IEncryptionUtil _encryptionUtil;
+    private readonly IUnitOfWork _unitOfWork;
+    private IMapper _mapper;
+    private readonly ILogger<TeacherService> _logger;
+
+    public TeacherService(IEncryptionUtil encryptionUtil, IUnitOfWork unitOfWork, IMapper mapper, ILogger<TeacherService> logger)
     {
-        private readonly IEncryptionUtil _encryptionUtil;
-        private readonly IUnitOfWork _unitOfWork;
-        private IMapper _mapper;
-        private readonly ILogger<UserService> _logger;
+        _encryptionUtil = encryptionUtil;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+        _logger = logger;
+    }
 
-        public TeacherService(IEncryptionUtil encryptionUtil, IUnitOfWork unitOfWork, IMapper mapper, ILogger<UserService> logger)
+    public async Task<UserReadOnlyDTO> SignUpUserAsync(TeacherSignupDTO teacherSignupDTO)
+    {
+        Teacher teacher = _mapper.Map<Teacher>(teacherSignupDTO);
+        User user = _mapper.Map<User>(teacherSignupDTO);
+
+
+        User? existingUser = await _unitOfWork.UserRepository.GetUserByUsernameAsync(user.Username);
+
+        if (existingUser is not null)
         {
-            _encryptionUtil = encryptionUtil;
-            _unitOfWork = unitOfWork;
-            _mapper = mapper;
-            _logger = logger;
+            throw new EntityAlreadyExistsException("User", "User already exists");
         }
 
-        public async Task SignUpUserAsync(TeacherSignupDTO teacherSignupDTO
-            )
-        {
-            Teacher teacher = _mapper.Map<Teacher>(teacherSignupDTO);
-            User user = _mapper.Map<User>(teacherSignupDTO);
-            try
-            {
-                User? existingUser = await _unitOfWork.UserRepository.GetUserByUsernameAsync(user.Username);
+        user.Teacher = teacher;
+        user.Password = _encryptionUtil.Encrypt(user.Password);
 
-                if (existingUser is not null)
-                {
-                    throw new EntityAlreadyExistsException("User " , " already exists");
-                }
+        await _unitOfWork.UserRepository.AddAsync(user);
+        await _unitOfWork.TeacherRepository.AddAsync(teacher);
 
-                user.Teacher = teacher;
-                user.Password = _encryptionUtil.Encrypt(user.Password);
-
-                await _unitOfWork.UserRepository.AddAsync(user);
-                await _unitOfWork.TeacherRepository.AddAsync(teacher);
-
-                await _unitOfWork.SaveAsync();
-                _logger.LogInformation("Teacher with id={Id} signed up successfully", teacher.Id);
-            }
-            catch (EntityAlreadyExistsException)
-            {
-                _logger.LogWarning("Error signing up for teacher with username={Username}", teacher.User.Username);
-                throw;
-            }
-        }
+        await _unitOfWork.SaveAsync();
+        _logger.LogInformation("Teacher with id={Id} signed up successfully", teacher.Id);
+        return _mapper.Map<UserReadOnlyDTO>(user);
     }
 }

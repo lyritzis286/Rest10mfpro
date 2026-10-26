@@ -1,8 +1,10 @@
-﻿using SchoolApp.DTO;
+﻿
+using SchoolApp.DTO;
 
-namespace SchoolApp.Services;
-
-public interface ITeacherService
+namespace SchoolApp.Services
 {
-    Task SignUpUserAsync(TeacherSignupDTO request);
+    public interface ITeacherService
+    {
+        Task<UserReadOnlyDTO> SignUpUserAsync(TeacherSignupDTO request);
+    }
 }

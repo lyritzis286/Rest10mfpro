@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Microsoft.Identity.Client;
 using Microsoft.IdentityModel.Tokens;
 using SchoolApp.Core;
 using SchoolApp.Core.Filters;
@@ -20,7 +21,6 @@ namespace SchoolApp.Services
         private readonly IUnitOfWork _unitOfWork;
         private IMapper _mapper;
         private readonly ILogger<UserService> _logger;
-
         private readonly IConfiguration _configuration;
 
         public UserService(IEncryptionUtil encryptionUtil, IUnitOfWork unitOfWork,
@@ -32,7 +32,9 @@ namespace SchoolApp.Services
             _logger = logger;
             _configuration = configuration;
         }
-        public async Task<PaginatedResult<UserReadOnlyDTO>> GetPaginatedUsersFilteredAsync(int pageNumber, int pageSize, UserFiltersDTO userFiltersDTO)
+
+        public async Task<PaginatedResult<UserReadOnlyDTO>> GetPaginatedUsersFilteredAsync(int pageNumber, int pageSize,
+            UserFiltersDTO userFiltersDTO)
         {
             List<User> users = [];
             List<Expression<Func<User, bool>>> predicates = [];
@@ -40,7 +42,6 @@ namespace SchoolApp.Services
             if (!string.IsNullOrEmpty(userFiltersDTO.Username))
             {
                 predicates.Add(u => u.Username == userFiltersDTO.Username);
-
             }
 
             if (!string.IsNullOrEmpty(userFiltersDTO.Email))
@@ -62,52 +63,51 @@ namespace SchoolApp.Services
                 PageNumber = paginatedResult.PageNumber,
                 PageSize = paginatedResult.PageSize
             };
+
             _logger.LogInformation("Retrieved {Count} users", dtoResult.Data.Count);
             return dtoResult;
         }
 
         public async Task<UserReadOnlyDTO?> GetUserByUsernameAsync(string username)
         {
-            try
+
+            User? user = await _unitOfWork.UserRepository.GetUserByUsernameAsync(username);
+
+            if (user is null)
             {
-                User? user = await _unitOfWork.UserRepository.GetUserByUsernameAsync(username);
-                if(user is null)
-                {
-                    throw new EntityNotFoundException("User  " , "Entity Not found");
-                }
-                _logger.LogInformation("User found: {Username}");
-                return _mapper.Map<UserReadOnlyDTO>(user);
+                throw new EntityNotFoundException("User", "Enity not found.");
             }
-            catch(EntityNotFoundException)
-            {
-                _logger.LogError("Error retreiving user with username={Username}");
-                throw;
-            }
+
+            _logger.LogInformation("User found with username={Username}", username);
+            return _mapper.Map<UserReadOnlyDTO>(user);
+
         }
+
+        public async Task<UserReadOnlyDTO> GetUserByIdAsync(int id)
+        {
+            var user = await _unitOfWork.UserRepository.GetAsync(id);
+
+            if (user == null)
+            {
+                throw new EntityNotFoundException("User", $"User with id {id} not found");
+            }
+
+            _logger.LogInformation("User with id {Id} found", id);
+            return _mapper.Map<UserReadOnlyDTO>(user);
+        }
+
 
         public async Task<User?> VerifyAndGetUserAsync(UserLoginDTO credentials)
         {
-            try
+            User? user = await _unitOfWork.UserRepository.GetUserByUsernameAsync(credentials.Username!);
+
+            if (user is null || !_encryptionUtil.IsValidPassword(credentials.Password!, user.Password))
             {
-                User? user = await _unitOfWork.UserRepository.GetUserByUsernameAsync(credentials.Username!);
-
-                if (user is null || !_encryptionUtil.IsValidPassword(credentials.Password!, user.Password))
-                {
-                    throw new EntityNotAuthorizedException("Auth","Bad Credentials");
-                }
-                _logger.LogInformation("User with username={Username} verified for login.", credentials.Username);
-                return user;
+                throw new EntityNotAuthorizedException("Auth", "Bad Credentials");
             }
-            catch (EntityNotAuthorizedException)
-            {
-                _logger.LogError("Authentication failed for username={Username}", credentials.Username);
-                return null;
-            }
-
-
-
+            _logger.LogInformation("User with username={Username} verified for login.", credentials.Username);
+            return user;
         }
-
 
         public string CreateUserToken(User user)
         {
@@ -121,6 +121,7 @@ namespace SchoolApp.Services
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Role.Name)
+
             };
 
             claimsInfo.AddRange(user.Role.Capabilities
@@ -136,7 +137,7 @@ namespace SchoolApp.Services
 
             // Serialize the token to a string
             return new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
+
         }
     }
 }
-
